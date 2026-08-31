@@ -7,7 +7,6 @@ FROM amazoncorretto:8
 RUN yum -y install python3 \
     python3-pip \
     shadow-utils \
-    curl \
     tar \
     gzip
 

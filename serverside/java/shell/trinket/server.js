@@ -25,6 +25,28 @@ const io = new Server(httpServer, {
 const java = '/usr/bin/java';
 const javac = '/usr/bin/javac';
 
+// Absolute cap on how long one student program may run, independent of socket
+// state. socket.io's 25s pings keep an OPEN browser tab alive indefinitely and
+// haproxy's `timeout tunnel` is an inactivity timeout, not a lifetime -- so a
+// program parked on a Scanner prompt otherwise survives until the container is
+// recreated, holding ~11 threads and ~11 MiB apiece. Class periods are 50 or
+// 135 minutes, so 135 min is the longest a legitimate program can need.
+// Mirrors the python shell's childTimers pattern (python/shell/trinket/server.js).
+const maxRunMs = Number(process.env.TRINKET_MAX_RUN_MS) || 135 * 60 * 1000;
+
+// Per-JVM heap cap. Without it the JVM derives its default max heap from the
+// CONTAINER limit (1/4 of it), so raising mem_limit silently raises every
+// student's appetite -- and because one container is shared by the whole class,
+// a single runaway allocation can trigger a cgroup OOM kill that takes ANOTHER
+// student's program with it. An explicit -Xmx makes a runaway throw
+// OutOfMemoryError inside its own program: a teachable error, not a mystery.
+// Deliberately NOT done via JAVA_TOOL_OPTIONS/_JAVA_OPTIONS -- those print
+// "Picked up ..." to stderr, the exact channel this file inspects to decide
+// whether a compile failed, which would report every success as an error.
+const javaFlags = (process.env.TRINKET_JAVA_FLAGS || '-Xmx256m').split(/\s+/).filter(Boolean);
+
+const childTimers = {};
+
 let connections = 0;
 
 io.on('connection', (socket) => {
@@ -36,6 +58,7 @@ io.on('connection', (socket) => {
   let watchInProgressCurrent = 0;
 
   let child;
+  let childStartedAt = undefined;
   let childReady = false;
   let childEnded = false;
   let childEndedLog = undefined;
@@ -166,8 +189,20 @@ io.on('connection', (socket) => {
         if (code === 0) {
           try {
             accessSync(`${dir}/${classFile}`, constants.R_OK | constants.W_OK);
-            child = child_process.spawn(java, [mainClassName], {cwd:dir});
+            child = child_process.spawn(java, [...javaFlags, mainClassName], {cwd:dir});
             console.log('child?', typeof(child));
+
+            childStartedAt = +new Date();
+            childTimers[child.pid] = setTimeout(() => {
+              const thisNow = +new Date();
+              console.log(`max run time exceeded, pid ${child.pid} still running after ${(thisNow - childStartedAt) / 1000}s`);
+              socket.emit('script error', {
+                error : `\nError: This program ran for more than ${Math.round(maxRunMs / 60000)} minutes and was stopped by the server.\n`
+              });
+              // Let the message flush, then disconnect: the disconnect handler
+              // does the actual SIGKILL, watcher close and session rmSync.
+              setTimeout(() => { socket.disconnect(); }, 1000);
+            }, maxRunMs);
 
             // strings rather than buffers
             child.stdout.setEncoding('utf-8');
@@ -202,6 +237,15 @@ io.on('connection', (socket) => {
             child.on('exit', (code, signal) => {
               childEnded = true;
               console.log('child exit:', code, signal);
+
+              try {
+                if (childTimers[child.pid]) {
+                  clearTimeout(childTimers[child.pid]);
+                  delete childTimers[child.pid];
+                }
+              } catch(e) {
+                console.log("error clearing timeout:", e);
+              }
 
               if (error.length) {
                 childEndedLog = error.join('');
@@ -323,6 +367,15 @@ io.on('connection', (socket) => {
     console.log('disconnecting');
     connections = connections - 1;
     if (child) {
+      try {
+        if (childTimers[child.pid]) {
+          clearTimeout(childTimers[child.pid]);
+          delete childTimers[child.pid];
+        }
+      } catch(e) {
+        console.log("error clearing timeout:", e);
+      }
+
       // sometimes kill won't work if child is waiting on stdin
       child.stdin.end();
 

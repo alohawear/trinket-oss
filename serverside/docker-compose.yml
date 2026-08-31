@@ -35,13 +35,14 @@ services:
     # part. Upstream's 50 would cap this at roughly two concurrent programs.
     pids_limit: 800
     init: true
-    # Unlike java-shell there is no -Xmx equivalent, so this limit is also the
-    # only bound on a single runaway allocation, and a cgroup OOM kill here can
-    # take an unrelated session's program with it. Lower it if you would rather
-    # contain that blast radius than accommodate a large legitimate program:
-    # measured usage is a ~45 MiB idle floor plus ~5 MiB per light program, so
-    # 40 concurrent is nearer 250 MiB and 768m would be ample.
-    mem_limit: 1.5g
+    # Deliberately lower than java-shell's, and the one value NOT mirrored from
+    # it. There is no -Xmx equivalent here, so this limit is also the only bound
+    # on a single runaway allocation, and a cgroup OOM kill takes whichever
+    # sessions the kernel picks -- possibly someone else's program. Measured
+    # usage is a ~45 MiB idle floor plus ~5 MiB per light program, so 40
+    # concurrent is nearer 250 MiB: 768m is 3x the real workload while keeping
+    # a runaway's blast radius small.
+    mem_limit: 768m
     mem_reservation: 512m
     # Interpreted CPython is less compile-bound than javac, but 1.0 still makes
     # the whole class share a single core. Give it several if the host has them.

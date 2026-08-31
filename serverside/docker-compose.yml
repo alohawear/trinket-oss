@@ -24,12 +24,29 @@ services:
       - "8010"
     volumes:
       - python-sessions:/tmp/sessions
-    # Production security options (uncomment for hardened deployment):
-    mem_limit: 500m
-    mem_reservation: 375m
-    cpus: 1.0
+    # Mirrors java-shell -- see the reasoning on that service, all of which
+    # applies here: one container serves every concurrent session, so these are
+    # class-wide ceilings, and pids_limit counts threads rather than processes.
+    #
+    # The per-program thread figure behind 800 was measured on java, not here.
+    # Do NOT assume CPython is cheaper on that axis: most of the ~15 threads per
+    # concurrent program are the per-SESSION node process and its chokidar
+    # watcher, which are identical on this side -- the interpreter is the small
+    # part. Upstream's 50 would cap this at roughly two concurrent programs.
+    pids_limit: 800
+    init: true
+    # Unlike java-shell there is no -Xmx equivalent, so this limit is also the
+    # only bound on a single runaway allocation, and a cgroup OOM kill here can
+    # take an unrelated session's program with it. Lower it if you would rather
+    # contain that blast radius than accommodate a large legitimate program:
+    # measured usage is a ~45 MiB idle floor plus ~5 MiB per light program, so
+    # 40 concurrent is nearer 250 MiB and 768m would be ample.
+    mem_limit: 1.5g
+    mem_reservation: 512m
+    # Interpreted CPython is less compile-bound than javac, but 1.0 still makes
+    # the whole class share a single core. Give it several if the host has them.
+    cpus: 4.0
     cpu_shares: 512
-    pids_limit: 50
     # read_only: true
     # tmpfs:
     #   - /tmp:size=100m

@@ -3,7 +3,7 @@ services:
   nginx:
     build: ./nginx
     ports:
-      - "8080:80"
+      - "127.0.0.1:8097:80"
       # Uncomment for SSL:
       # - "8443:443"
     volumes:
@@ -25,11 +25,11 @@ services:
     volumes:
       - python-sessions:/tmp/sessions
     # Production security options (uncomment for hardened deployment):
-    # mem_limit: 500m
-    # mem_reservation: 375m
-    # cpus: 1.0
-    # cpu_shares: 512
-    # pids_limit: 50
+    mem_limit: 500m
+    mem_reservation: 375m
+    cpus: 1.0
+    cpu_shares: 512
+    pids_limit: 50
     # read_only: true
     # tmpfs:
     #   - /tmp:size=100m
@@ -56,11 +56,11 @@ services:
     volumes:
       - java-sessions:/tmp/sessions
     # Production security options (uncomment for hardened deployment):
-    # mem_limit: 500m
-    # mem_reservation: 375m
-    # cpus: 1.0
-    # cpu_shares: 512
-    # pids_limit: 50
+    mem_limit: 500m
+    mem_reservation: 375m
+    cpus: 1.0
+    cpu_shares: 512
+    pids_limit: 50
 
   java-manager:
     build: ./java/manager

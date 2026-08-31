@@ -2,6 +2,10 @@ import { defineConfig } from 'vite';
 import { resolve } from 'path';
 
 export default defineConfig({
+  // outDir is `public`, which is also Vite's default publicDir. Without this,
+  // Vite tries to copy public/ onto itself and the build fails (EACCES on
+  // public/components/*). We only emit CSS, so disable the publicDir copy.
+  publicDir: false,
   // Build CSS assets only (Hapi serves the app)
   build: {
     outDir: 'public',

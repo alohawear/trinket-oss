@@ -1,13 +1,16 @@
-# Java 8 (Oracle) Dockerfile
-# Base image: Ubuntu
-# Installs: Java 8
+# Java 8 shell image
+# Base image: amazoncorretto:8 (Amazon Corretto 8 on Amazon Linux 2023)
+# Installs: Java 8 (from the base image), python3, node via nvm, pm2
   
 FROM amazoncorretto:8
 
+# Do NOT add curl here. This base image is Amazon Linux 2023, which ships
+# curl-minimal; `yum install curl` resolves to the full curl package, which
+# conflicts with curl-minimal, and the failed install takes the whole build
+# with it. curl is already available -- see the nvm install below.
 RUN yum -y install python3 \
     python3-pip \
     shadow-utils \
-    curl \
     tar \
     gzip
 

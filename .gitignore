@@ -51,3 +51,33 @@ public/_published
 *.swp
 
 .agignore
+
+*.bak
+# Dated backups (e.g. docker-compose.override.yml.bak-2026-08-26-0901) are not
+# matched by *.bak, and this fork is public -- nothing local should be stageable.
+*.bak-*
+
+# Compose overrides carry deployment-specific values (hostnames, ports).
+# NOTE: this line previously read "docker-comose.override.ymly" and so never
+# matched anything.
+docker-compose.override.yml
+docker-compose.override.yaml
+serverside/docker-compose.override.yml
+serverside/docker-compose.override.yaml
+
+# node-config overrides for the serverside language managers. The shipped
+# config/default.json in each manager is written for local development
+# (corsOrigins on localhost:3000, shells on localhost:82xx); a deployment
+# supplies its real origins and shell service names here.
+serverside/*/manager/config/local.json
+serverside/*/manager/config/local-*.json
+serverside/*/manager/config/production.json
+
+# Pins COMPOSE_PROJECT_NAME and COMPOSE_PROFILES for the serverside stack, so
+# the project name can never be mistyped on the command line. A typo silently
+# creates a SECOND parallel stack rather than erroring: on 2026-08-26
+# `-p tinket-serverside` (missing r) stood up 4 duplicate containers whose
+# nginx then failed with "Bind for 127.0.0.1:8097 failed: port is already
+# allocated" -- while the real stack kept serving, so the intended fix landed
+# on an orphan container. Deployment-specific, hence ignored.
+serverside/.env

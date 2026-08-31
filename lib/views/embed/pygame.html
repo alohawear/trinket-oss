@@ -115,7 +115,7 @@ data-systemjs-import="{{ '/components/noVNC-dist/lib/rfb.js' | cachePrefix }}"
 
 {% block body_scripts %}
   <script src="{{ '/components/systemjs/dist/system.js' | cachePrefix }}"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.min.js"></script>
+  <script src="{{ '/js/vendor/socket.io.min.js' | cachePrefix }}"></script>
 
   {% if not outputOnly %}
   <script src="//cdnjs.cloudflare.com/ajax/libs/sockjs-client/0.3.4/sockjs.min.js"></script>

@@ -43,6 +43,13 @@ const uid = 1000;
 const gid = 1000;
 
 let connections = 0;
+// Absolute cap on how long one student program may run, independent of socket
+// state. Upstream hard-codes 60000 here, which kills any program still waiting
+// at an input() prompt after one minute -- unusable for interactive classwork.
+// Class periods are 50 or 135 minutes, so 135 min is the longest a legitimate
+// program can need. Kept identical to the java shell.
+const maxRunMs = Number(process.env.TRINKET_MAX_RUN_MS) || 135 * 60 * 1000;
+
 const childTimers = {};
 
 io.on('connection', (socket) => {
@@ -225,9 +232,14 @@ io.on('connection', (socket) => {
       childStartedAt = +new Date();
       childTimers[child.pid] = setTimeout(() => {
         const thisNow = +new Date();
-        console.log(`disconnecting socket, pid ${child.pid} still running after ${(thisNow - childStartedAt) / 1000}`);
-        socket.disconnect();
-      }, 60000);
+        console.log(`max run time exceeded, pid ${child.pid} still running after ${(thisNow - childStartedAt) / 1000}s`);
+        socket.emit('script error', {
+          error : `\nError: This program ran for more than ${Math.round(maxRunMs / 60000)} minutes and was stopped by the server.\n`
+        });
+        // Let the message flush, then disconnect: the disconnect handler does
+        // the actual SIGKILL, watcher close and session rmSync.
+        setTimeout(() => { socket.disconnect(); }, 1000);
+      }, maxRunMs);
 
       // strings rather than buffers
       child.stdout.setEncoding('utf-8');

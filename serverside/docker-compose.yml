@@ -55,12 +55,37 @@ services:
       - "8010"
     volumes:
       - java-sessions:/tmp/sessions
-    # Production security options (uncomment for hardened deployment):
-    mem_limit: 500m
-    mem_reservation: 375m
-    cpus: 1.0
+    # Resource limits. NOTE that ONE shell container serves EVERY concurrent
+    # session, so each of these is a ceiling for the whole class, not per user.
+    # Sized from measurements on a 40-student class; adjust to your host and
+    # class size, but understand what each one does before lowering it.
+    #
+    # pids_limit counts THREADS, not processes: ~23 threads at idle plus ~15 per
+    # concurrent program (a session's node + chokidar watcher, javac, then the
+    # JVM), so 40 concurrent needs ~620. 800 leaves ~30% headroom. Keep a limit
+    # -- it is the fork-bomb guard against hostile code -- but do not set it
+    # near the old 50: that refuses fork() at the THIRD concurrent program, and
+    # the failure surfaces as "Some unknown compiler error occurred" with empty
+    # stderr, because javac never ran.
+    pids_limit: 800
+    # The image ends in `pm2-runtime`, which does not wait() on arbitrary
+    # children. server.js reaps its own, but when server.js itself dies mid-run
+    # its in-flight javac/java re-parent to PID 1 and become permanent zombies,
+    # each holding a pid slot -- so the effective pids ceiling decays with
+    # uptime and a plain restart only resets the clock. tini reaps them.
+    init: true
+    # ~18 MiB per concurrent program over a ~30 MiB idle floor, so 40 concurrent
+    # is ~750 MiB. This limit is decoupled from per-program appetite because
+    # server.js passes an explicit -Xmx (TRINKET_JAVA_FLAGS, default -Xmx256m);
+    # without that the JVM would derive its max heap from 1/4 of this number and
+    # raising the limit would silently raise every student's appetite.
+    mem_limit: 1.5g
+    mem_reservation: 512m
+    # javac is CPU-bound. At cpus: 1.0 the entire class shares a single core and
+    # 40 concurrent compiles each take ~40x longer, which reads as a hang.
+    # Give it several cores if the host has them.
+    cpus: 4.0
     cpu_shares: 512
-    pids_limit: 50
 
   java-manager:
     build: ./java/manager
